@@ -1,17 +1,7 @@
-version: "3.9"
+
 
 services:
-  mongo:
-    image: mongo:6
-    container_name: mern-mongo
-    restart: always
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: example
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo_data:/data/db
+
 
   backend:
     build:
@@ -22,8 +12,7 @@ services:
       - ./.env.production
     ports:
       - "13035:5001"
-    depends_on:
-      - mongo
+   
 
   frontend:
     build:
