@@ -1,19 +1,17 @@
+version: "3"
 
 services:
   backend:
-    build:
-      context: ./backend
+    image: aofza1509a/note-backend:latest
     container_name: note-backend
     restart: always
     env_file:
       - ./.env.production
     ports:
       - "13035:5001"
-   
 
   frontend:
-    build:
-      context: ./frontend
+    image: aofza1509a/note-frontend:latest
     container_name: note-frontend
     restart: always
     env_file:
@@ -22,4 +20,3 @@ services:
       - "13036:80"
     depends_on:
       - backend
-
