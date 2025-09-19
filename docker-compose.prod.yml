@@ -2,7 +2,7 @@ version: "3"
 
 services:
   backend:
-    image: aofza1509a/note-backend:latest
+    image: aofza1509a/note-backend:${GITHUB_SHA}
     container_name: note-backend
     restart: always
     env_file:
@@ -11,7 +11,7 @@ services:
       - "13035:5001"
 
   frontend:
-    image: aofza1509a/note-frontend:latest
+    image: aofza1509a/note-frontend:${GITHUB_SHA}
     container_name: note-frontend
     restart: always
     env_file:

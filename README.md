@@ -15,7 +15,7 @@ NODE_ENV=development
 ```
 
 ## 🔧 Run the Backend
-
+sd
 ```
 cd backend
 npm install
@@ -28,4 +28,4 @@ npm run dev
 cd frontend
 npm install
 npm run dev
-```a
+```

@@ -1,45 +1,72 @@
-name: CI/CD Pipeline
+name: CI/CD with Security Scan
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # 1. Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-    # Login Docker Hub
-    - name: Login to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      # 2. Install Node.js for dependency scan
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
 
-    # Build & Push Backend
-    - name: Build and push backend
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/note-backend:latest ./backend
-        docker push ${{ secrets.DOCKER_USERNAME }}/note-backend:latest
+      # 3. Install backend dependencies
+      - name: Install backend deps
+        run: |
+          cd backend
+          npm install
 
-    # Build & Push Frontend
-    - name: Build and push frontend
-      run: |
-        docker build -t ${{ secrets.DOCKER_USERNAME }}/note-frontend:latest ./frontend
-        docker push ${{ secrets.DOCKER_USERNAME }}/note-frontend:latest
+      # 4. Run npm audit
+      - name: Run npm audit
+        run: |
+          cd backend
+          npm audit --audit-level=high
 
-    # Deploy to VM
-    - name: Deploy on VM
-      uses: appleboy/ssh-action@v0.1.10
-      with:
-        host: ${{ secrets.VM_HOST }}
-        username: ${{ secrets.VM_USER }}
-        key: ${{ secrets.VM_SSH_KEY }}
-        script: |
-          cd ~/noteboard
-          git pull origin main || true
-          docker compose -f docker-compose.prod.yml pull
-          docker compose -f docker-compose.prod.yml up -d
+      # 5. Docker Hub login
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # 6. Build backend image
+      - name: Build backend Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/mern-backend:${{ github.sha }} ./backend
+
+      # 7. Run Trivy scan on backend image
+      - name: Run Trivy on backend
+        uses: aquasecurity/trivy-action@0.13.1
+        with:
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/mern-backend:${{ github.sha }}
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
+      # 8. Push backend image
+      - name: Push backend image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/mern-backend:${{ github.sha }}
+
+      # 🔁 (ทำซ้ำแบบเดียวกันสำหรับ frontend)
+
+      # 9. Deploy to VM
+      - name: Deploy to VM
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd ~/mern-thinkboard
+            git pull origin main
+            docker compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
