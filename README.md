@@ -25,7 +25,7 @@ npm run dev
 ## 💻 Run the Frontend 
 
 ```
-cd frontend
+cd frontendds
 npm install
 npm run dev
 ```
