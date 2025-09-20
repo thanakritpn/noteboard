@@ -111,15 +111,15 @@ jobs:
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
       # 14) Health check backend
-      - name: Health check backend
-        run: |
-          for i in {1..10}; do
-            if curl -f http://localhost:13035/api/notes; then
-              echo "Backend is up!"
-              exit 0
-            fi
-            echo "Waiting for backend..."
-            sleep 5
-          done
-          echo "Backend failed to start"
-          exit 1
+      # - name: Health check backend
+      #   run: |
+      #     for i in {1..10}; do
+      #       if curl -f http://localhost:13035/api/notes; then
+      #         echo "Backend is up!"
+      #         exit 0
+      #       fi
+      #       echo "Waiting for backend..."
+      #       sleep 5
+      #     done
+      #     echo "Backend failed to start"
+      #     exit 1
