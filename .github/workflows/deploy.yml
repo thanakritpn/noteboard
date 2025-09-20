@@ -16,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 2) Setup Node.js (รองรับ react-router@7 ที่ต้องการ Node >=20)
+      # 2) Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -29,7 +29,7 @@ jobs:
           npm ci
           npm test -- --passWithNoTests
 
-      # 4) Frontend tests (มี guard ถ้าไม่มี script test จะข้าม)
+      # 4) Frontend tests
       - name: Test frontend
         if: hashFiles('frontend/package.json') != ''
         run: |
@@ -78,7 +78,7 @@ jobs:
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }} ./frontend
 
-      # 11) Trivy scan frontend image (ถ้ามี)
+      # 11) Trivy scan frontend image
       - name: Run Trivy on frontend image
         if: hashFiles('frontend/Dockerfile') != ''
         uses: aquasecurity/trivy-action@0.13.1
@@ -88,7 +88,7 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # 12) Push frontend image (ถ้ามี)
+      # 12) Push frontend image
       - name: Push frontend image
         if: hashFiles('frontend/Dockerfile') != ''
         run: docker push ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }}
@@ -110,7 +110,7 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-      # 14) Health check (เช็ก backend จริง: /api/health)
+      # 14) Health check backend
       - name: Health check backend
         run: |
           for i in {1..10}; do
