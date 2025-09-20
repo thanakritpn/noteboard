@@ -10,51 +10,68 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout repo
+      # 1) Checkout (ดึงประวัติเต็มให้ Sonar คำนวณ New Code ได้แม่น)
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      # 2. Setup Node.js
+      # 2) Setup Node.js
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
           node-version: 18
 
-      # 3. Run backend tests
-      - name: Run backend tests
+      # 3) Backend tests + coverage
+      - name: Test backend (with coverage)
         run: |
           cd backend
-          npm install
-          npm test -- --passWithNoTests
+          npm ci
+          npm test -- --coverage --passWithNoTests
 
-      # 4. Run npm audit
+      # 4) Frontend tests + coverage (ถ้ามีโฟลเดอร์ frontend)
+      - name: Test frontend (with coverage)
+        if: hashFiles('frontend/package.json') != ''
+        run: |
+          cd frontend
+          npm ci
+          npm test -- --coverage --passWithNoTests
+
+      # 5) npm audit (SCA)
       - name: Run npm audit
         run: |
           cd backend
           npm audit --audit-level=high
 
-      # 5. SonarCloud Scan
+      # 6) SonarCloud Scan (CI-based)  ← ต้องปิด Automatic Analysis ใน SonarCloud ด้วย
       - name: SonarCloud Scan
-        uses: SonarSource/sonarcloud-github-action@master
+        uses: SonarSource/sonarqube-scan-action@v6.0.0
         with:
-          projectBaseDir: .
+          args: >
+            -Dsonar.projectBaseDir=.
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # 6. Login to Docker Hub
+      # (ถ้าต้องการให้ pipeline ล้มเมื่อ Quality Gate ไม่ผ่าน ให้เปิด step นี้)
+      - name: Sonar Quality Gate
+        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+      # 7) Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 7. Build backend image
+      # 8) Build backend image
       - name: Build backend image
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/note-backend:${{ github.sha }} ./backend
 
-      # 8. Scan backend image with Trivy
+      # 9) Trivy scan backend image
       - name: Run Trivy on backend image
         uses: aquasecurity/trivy-action@0.13.1
         with:
@@ -63,17 +80,19 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # 9. Push backend image
+      # 10) Push backend image
       - name: Push backend image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/note-backend:${{ github.sha }}
 
-      # 10. Build frontend image
+      # 11) Build frontend image (ถ้ามีโฟลเดอร์ frontend)
       - name: Build frontend image
+        if: hashFiles('frontend/Dockerfile') != ''
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }} ./frontend
 
-      # 11. Scan frontend image with Trivy
+      # 12) Trivy scan frontend image (ถ้ามี)
       - name: Run Trivy on frontend image
+        if: hashFiles('frontend/Dockerfile') != ''
         uses: aquasecurity/trivy-action@0.13.1
         with:
           image-ref: ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }}
@@ -81,11 +100,12 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # 12. Push frontend image
+      # 13) Push frontend image (ถ้ามี)
       - name: Push frontend image
+        if: hashFiles('frontend/Dockerfile') != ''
         run: docker push ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }}
 
-      # 13. Deploy to VM via SSH + docker compose
+      # 14) Deploy to VM via SSH + docker compose
       - name: Deploy to VM
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -102,8 +122,16 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-      # 14. Health check
-      - name: Health check app
+      # 15) Health check (เช็ก backend จริง: /api/health)
+      - name: Health check backend
         run: |
-          sleep 10
-          curl -f http://57.155.0.49:13036 || exit 1
+          for i in {1..10}; do
+            if curl -fsS http://57.155.0.49:13036/api/health > /dev/null; then
+              echo "Backend healthy"
+              exit 0
+            fi
+            echo "Waiting for backend..."
+            sleep 5
+          done
+          echo "Backend NOT healthy"
+          exit 1
