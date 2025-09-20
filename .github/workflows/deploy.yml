@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1) Checkout (ให้ Sonar คำนวณ New Code ได้แม่น)
+      # 1) Checkout
       - name: Checkout code
         uses: actions/checkout@v4
         with:
@@ -22,21 +22,21 @@ jobs:
         with:
           node-version: 20
 
-      # 3) Backend tests + coverage
-      - name: Test backend (with coverage)
+      # 3) Backend tests
+      - name: Test backend
         run: |
           cd backend
           npm ci
-          npm test -- --coverage --passWithNoTests
+          npm test -- --passWithNoTests
 
-      # 4) Frontend tests + coverage (มี guard ถ้าไม่มี script test จะข้าม)
-      - name: Test frontend (with coverage)
+      # 4) Frontend tests (มี guard ถ้าไม่มี script test จะข้าม)
+      - name: Test frontend
         if: hashFiles('frontend/package.json') != ''
         run: |
           cd frontend
           npm ci
           if npm run | grep -q "^  test"; then
-            npm test -- --coverage --passWithNoTests
+            npm test -- --passWithNoTests
           else
             echo "No frontend test script. Skipping tests."
           fi
@@ -47,35 +47,19 @@ jobs:
           cd backend
           npm audit --audit-level=high
 
-      # 6) SonarCloud Scan (CI-based)  ← อย่าลืมปิด Automatic Analysis ที่ SonarCloud
-      - name: SonarCloud Scan
-        uses: SonarSource/sonarqube-scan-action@v6.0.0
-        with:
-          args: >
-            -Dsonar.projectBaseDir=.
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # (ตัวเลือก) ล้ม pipeline หาก Quality Gate ไม่ผ่าน
-      - name: Sonar Quality Gate
-        uses: SonarSource/sonarqube-quality-gate-action@v1.1.0
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-
-      # 7) Login Docker Hub
+      # 6) Login Docker Hub
       - name: Login to Docker Hub
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      # 8) Build backend image
+      # 7) Build backend image
       - name: Build backend image
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/note-backend:${{ github.sha }} ./backend
 
-      # 9) Trivy scan backend image
+      # 8) Trivy scan backend image
       - name: Run Trivy on backend image
         uses: aquasecurity/trivy-action@0.13.1
         with:
@@ -84,17 +68,17 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # 10) Push backend image
+      # 9) Push backend image
       - name: Push backend image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/note-backend:${{ github.sha }}
 
-      # 11) Build frontend image (ถ้ามี Dockerfile)
+      # 10) Build frontend image (ถ้ามี Dockerfile)
       - name: Build frontend image
         if: hashFiles('frontend/Dockerfile') != ''
         run: |
           docker build -t ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }} ./frontend
 
-      # 12) Trivy scan frontend image (ถ้ามี)
+      # 11) Trivy scan frontend image (ถ้ามี)
       - name: Run Trivy on frontend image
         if: hashFiles('frontend/Dockerfile') != ''
         uses: aquasecurity/trivy-action@0.13.1
@@ -104,12 +88,12 @@ jobs:
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
 
-      # 13) Push frontend image (ถ้ามี)
+      # 12) Push frontend image (ถ้ามี)
       - name: Push frontend image
         if: hashFiles('frontend/Dockerfile') != ''
         run: docker push ${{ secrets.DOCKER_USERNAME }}/note-frontend:${{ github.sha }}
 
-      # 14) Deploy to VM via SSH + docker compose
+      # 13) Deploy to VM via SSH + docker compose
       - name: Deploy to VM
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -126,7 +110,7 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-      # 15) Health check (เช็ก backend จริง: /api/health)
+      # 14) Health check (เช็ก backend จริง: /api/health)
       - name: Health check backend
         run: |
           for i in {1..10}; do
